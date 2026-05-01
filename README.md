@@ -55,9 +55,43 @@ Die Integrationstests werden nur ausgefuehrt, wenn diese Variablen gesetzt sind:
 - `INTEGRATION_INFLUX_ORG`
 - `INTEGRATION_INFLUX_BUCKET`
 
-## Docker
+## Container starten
 
-Build lokal:
+Wenn du `strominfo-influx` nur nutzen und nicht selbst bauen willst, kannst du das fertige Container-Image aus der GitHub Container Registry starten.
+
+Image:
+
+```text
+ghcr.io/chrikoch/strominfo-influx
+```
+
+Verfuegbare Tags werden in GitHub Actions gebaut und nach GHCR gepusht:
+
+- `main` fuer den aktuellen Stand des `main`-Branches
+- `v...` fuer Release-Tags wie `v1.0.0`
+- `sha-...` fuer commitgenaue Builds
+
+Fuer normale Nutzung ist ein Release-Tag wie `v1.0.0` die beste Wahl. Wenn du immer den aktuellen Stand aus `main` willst, kannst du `:main` verwenden.
+
+Beispiel:
+
+```bash
+docker run --rm \
+  -e INFLUX_URL=http://host.docker.internal:8086 \
+  -e INFLUX_TOKEN=token \
+  -e INFLUX_ORG=home \
+  -e INFLUX_BUCKET=strom \
+  ghcr.io/chrikoch/strominfo-influx:main
+```
+
+Hinweis:
+
+- `host.docker.internal` funktioniert typischerweise mit Docker Desktop auf macOS und Windows.
+- Unter Linux musst du fuer `INFLUX_URL` meist die echte Adresse deines InfluxDB-Hosts angeben, zum Beispiel `http://192.168.1.10:8086` oder einen Containernamen im selben Docker-Netzwerk.
+
+## Docker lokal bauen
+
+Wenn du das Image selbst bauen willst:
 
 ```bash
 docker build -t strominfo-influx .
@@ -75,17 +109,6 @@ Danach direkt starten:
 
 ```bash
 ./bin/strominfo-influx --poll-interval=15m
-```
-
-Run:
-
-```bash
-docker run --rm \
-  -e INFLUX_URL=http://host.docker.internal:8086 \
-  -e INFLUX_TOKEN=token \
-  -e INFLUX_ORG=home \
-  -e INFLUX_BUCKET=strom \
-  ghcr.io/<owner>/strominfo-influx:latest
 ```
 
 ## CI/CD
