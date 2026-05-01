@@ -18,11 +18,20 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 func TestFetchPricesSuccess(t *testing.T) {
 	t.Parallel()
 
+	startDate := time.Date(2026, time.May, 1, 0, 0, 0, 0, time.FixedZone("CEST", 2*60*60))
+	endDate := startDate.AddDate(0, 0, 1)
+
 	client := NewClientWithBaseURL("http://energycharts.test", &http.Client{
 		Timeout: time.Second,
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			if got := r.URL.Query().Get("bzn"); got != "DE-LU" {
 				t.Fatalf("expected bzn DE-LU, got %q", got)
+			}
+			if got := r.URL.Query().Get("start"); got != "2026-05-01" {
+				t.Fatalf("expected start 2026-05-01, got %q", got)
+			}
+			if got := r.URL.Query().Get("end"); got != "2026-05-02" {
+				t.Fatalf("expected end 2026-05-02, got %q", got)
 			}
 			return &http.Response{
 				StatusCode: http.StatusOK,
@@ -32,7 +41,7 @@ func TestFetchPricesSuccess(t *testing.T) {
 		}),
 	})
 
-	resp, err := client.FetchPrices(context.Background(), "DE-LU")
+	resp, err := client.FetchPrices(context.Background(), "DE-LU", startDate, endDate)
 	if err != nil {
 		t.Fatalf("FetchPrices returned error: %v", err)
 	}
@@ -45,6 +54,9 @@ func TestFetchPricesSuccess(t *testing.T) {
 func TestFetchPricesMismatchedArrays(t *testing.T) {
 	t.Parallel()
 
+	startDate := time.Date(2026, time.May, 1, 0, 0, 0, 0, time.UTC)
+	endDate := startDate.AddDate(0, 0, 1)
+
 	client := NewClientWithBaseURL("http://energycharts.test", &http.Client{
 		Timeout: time.Second,
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -56,7 +68,7 @@ func TestFetchPricesMismatchedArrays(t *testing.T) {
 		}),
 	})
 
-	_, err := client.FetchPrices(context.Background(), "DE-LU")
+	_, err := client.FetchPrices(context.Background(), "DE-LU", startDate, endDate)
 	if err == nil {
 		t.Fatal("expected error")
 	}

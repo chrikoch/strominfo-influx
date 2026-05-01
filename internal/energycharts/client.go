@@ -44,7 +44,7 @@ func NewClientWithBaseURL(baseURL string, httpClient *http.Client) *Client {
 	}
 }
 
-func (c *Client) FetchPrices(ctx context.Context, biddingZone string) (PriceResponse, error) {
+func (c *Client) FetchPrices(ctx context.Context, biddingZone string, startDate, endDate time.Time) (PriceResponse, error) {
 	endpoint, err := url.Parse(c.baseURL + "/price")
 	if err != nil {
 		return PriceResponse{}, fmt.Errorf("parse base url: %w", err)
@@ -52,6 +52,8 @@ func (c *Client) FetchPrices(ctx context.Context, biddingZone string) (PriceResp
 
 	query := endpoint.Query()
 	query.Set("bzn", biddingZone)
+	query.Set("start", startDate.Format(time.DateOnly))
+	query.Set("end", endDate.Format(time.DateOnly))
 	endpoint.RawQuery = query.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)

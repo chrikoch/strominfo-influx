@@ -3,6 +3,7 @@
 `strominfo-influx` holt Strommarktdaten von Energy Charts und schreibt sie nach InfluxDB 2.x.
 
 V1 implementiert einen Go-Daemon fuer Day-Ahead-Preise aus Deutschland ueber `bzn=DE-LU`.
+Pro Lauf verarbeitet das Tool die Preise fuer heute und morgen im Tagesbezug `Europe/Berlin`.
 
 ## Konfiguration
 
