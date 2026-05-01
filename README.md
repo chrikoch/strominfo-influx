@@ -72,7 +72,7 @@ Verfuegbare Tags werden in GitHub Actions gebaut und nach GHCR gepusht:
 - `v...` fuer Release-Tags wie `v1.0.0`
 - `sha-...` fuer commitgenaue Builds
 
-Fuer normale Nutzung ist ein Release-Tag wie `v1.0.0` die beste Wahl. Wenn du immer den aktuellen Stand aus `main` willst, kannst du `:main` verwenden.
+Fuer normale Nutzung ist ein Release-Tag wie `v1.0.0` die beste Wahl. Wenn du immer den aktuellen Stand aus `main` willst, kannst du `:main` verwenden. Ein Push eines `v...`-Tags erzeugt zusaetzlich ein GitHub Release mit Linux-Binaries fuer `amd64` und `arm64`.
 
 Beispiel:
 
@@ -120,3 +120,5 @@ GitHub Actions:
 - startet dafuer InfluxDB 2.7 als Service-Container
 - baut ein Multi-Arch-Image fuer `linux/amd64` und `linux/arm64`
 - pusht Images bei Branch-/Tag-Builds nach GHCR
+- erzeugt bei `v...`-Tags ein GitHub Release mit automatisch generierten Notes
+- haengt dem Release Linux-Binaries fuer `amd64` und `arm64` an
