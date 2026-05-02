@@ -47,3 +47,11 @@ Integration coverage lives in `integration/` and expects:
 Current history uses short, imperative commit messages such as `Initial commit`. Keep that style: concise subject line, present tense, one logical change per commit.
 
 Pull requests should include a short summary, note config or schema changes, list test commands run, and reference any related issue. If behavior changes, update `README.md` in the same PR.
+
+## Release Process
+
+Releases are driven by annotated git tags matching `v*`. Use a short release-note style tag annotation that summarizes the release, then push the tag to `origin` to trigger the GitHub Actions release job.
+
+Example:
+
+- `git tag -a v0.0.3 -m "v0.0.3" -m "- Add X" -m "- Fix Y"`
