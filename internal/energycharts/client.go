@@ -25,6 +25,12 @@ type PriceResponse struct {
 	Price       []float64 `json:"price"`
 }
 
+type FrequencyResponse struct {
+	Deprecated  bool      `json:"deprecated"`
+	UnixSeconds []int64   `json:"unix_seconds"`
+	Data        []float64 `json:"data"`
+}
+
 func NewClient(timeout time.Duration) *Client {
 	return &Client{
 		baseURL: defaultBaseURL,
@@ -79,6 +85,45 @@ func (c *Client) FetchPrices(ctx context.Context, biddingZone string, startDate,
 
 	if len(payload.UnixSeconds) != len(payload.Price) {
 		return PriceResponse{}, fmt.Errorf("mismatched array lengths: unix_seconds=%d price=%d", len(payload.UnixSeconds), len(payload.Price))
+	}
+
+	return payload, nil
+}
+
+func (c *Client) FetchFrequency(ctx context.Context, startDate, endDate time.Time) (FrequencyResponse, error) {
+	endpoint, err := url.Parse(c.baseURL + "/frequency")
+	if err != nil {
+		return FrequencyResponse{}, fmt.Errorf("parse base url: %w", err)
+	}
+
+	query := endpoint.Query()
+	query.Set("start", startDate.Format(time.DateOnly))
+	query.Set("end", endDate.Format(time.DateOnly))
+	endpoint.RawQuery = query.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
+	if err != nil {
+		return FrequencyResponse{}, fmt.Errorf("build request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return FrequencyResponse{}, fmt.Errorf("request energy charts data: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return FrequencyResponse{}, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var payload FrequencyResponse
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return FrequencyResponse{}, fmt.Errorf("decode response: %w", err)
+	}
+
+	if len(payload.UnixSeconds) != len(payload.Data) {
+		return FrequencyResponse{}, fmt.Errorf("mismatched array lengths: unix_seconds=%d data=%d", len(payload.UnixSeconds), len(payload.Data))
 	}
 
 	return payload, nil

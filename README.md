@@ -41,6 +41,11 @@ go run ./cmd/strominfo-influx --poll-interval=15m
 - Field: `price_eur_mwh`
 - Timestamp: Wert aus `unix_seconds`
 
+- Measurement: `energy_charts_frequency`
+- Tags: `source=energy-charts`
+- Field: `frequency_hz`
+- Timestamp: Wert aus `unix_seconds`
+
 ## Tests
 
 Unit- und Integrationstests laufen mit:

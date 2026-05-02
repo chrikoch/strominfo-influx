@@ -51,6 +51,39 @@ func TestFetchPricesSuccess(t *testing.T) {
 	}
 }
 
+func TestFetchFrequencySuccess(t *testing.T) {
+	t.Parallel()
+
+	startDate := time.Date(2026, time.May, 1, 0, 0, 0, 0, time.UTC)
+	endDate := startDate.AddDate(0, 0, 1)
+
+	client := NewClientWithBaseURL("http://energycharts.test", &http.Client{
+		Timeout: time.Second,
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			if got := r.URL.Query().Get("start"); got != "2026-05-01" {
+				t.Fatalf("expected start 2026-05-01, got %q", got)
+			}
+			if got := r.URL.Query().Get("end"); got != "2026-05-02" {
+				t.Fatalf("expected end 2026-05-02, got %q", got)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(`{"unix_seconds":[1704067200,1704067201],"data":[49.98,50.01]}`)),
+			}, nil
+		}),
+	})
+
+	resp, err := client.FetchFrequency(context.Background(), startDate, endDate)
+	if err != nil {
+		t.Fatalf("FetchFrequency returned error: %v", err)
+	}
+
+	if len(resp.Data) != 2 || resp.Data[0] != 49.98 {
+		t.Fatalf("unexpected response: %+v", resp)
+	}
+}
+
 func TestFetchPricesMismatchedArrays(t *testing.T) {
 	t.Parallel()
 
@@ -69,6 +102,32 @@ func TestFetchPricesMismatchedArrays(t *testing.T) {
 	})
 
 	_, err := client.FetchPrices(context.Background(), "DE-LU", startDate, endDate)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "mismatched array lengths") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestFetchFrequencyMismatchedArrays(t *testing.T) {
+	t.Parallel()
+
+	startDate := time.Date(2026, time.May, 1, 0, 0, 0, 0, time.UTC)
+	endDate := startDate.AddDate(0, 0, 1)
+
+	client := NewClientWithBaseURL("http://energycharts.test", &http.Client{
+		Timeout: time.Second,
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(`{"unix_seconds":[1704067200],"data":[49.98,50.01]}`)),
+			}, nil
+		}),
+	})
+
+	_, err := client.FetchFrequency(context.Background(), startDate, endDate)
 	if err == nil {
 		t.Fatal("expected error")
 	}

@@ -10,12 +10,14 @@ import (
 )
 
 const (
-	MeasurementPrice = "energy_charts_price"
-	SourceTagValue   = "energy-charts"
+	MeasurementPrice     = "energy_charts_price"
+	MeasurementFrequency = "energy_charts_frequency"
+	SourceTagValue       = "energy-charts"
 )
 
 type Fetcher interface {
 	FetchPrices(ctx context.Context, biddingZone string, startDate, endDate time.Time) (energycharts.PriceResponse, error)
+	FetchFrequency(ctx context.Context, startDate, endDate time.Time) (energycharts.FrequencyResponse, error)
 }
 
 type Collector interface {
@@ -39,17 +41,23 @@ func NewPriceCollector(fetcher Fetcher, biddingZone string) *PriceCollector {
 }
 
 func (c *PriceCollector) Collect(ctx context.Context) ([]model.Point, error) {
-	windowStart, requestEnd, windowEnd := currentPriceWindow(c.now().In(c.location))
+	now := c.now().In(c.location)
+	priceWindowStart, priceRequestEnd, priceWindowEnd := currentPriceWindow(now)
+	frequencyWindowStart, frequencyRequestEnd := currentDayWindow(now)
 
-	response, err := c.fetcher.FetchPrices(ctx, c.biddingZone, windowStart, requestEnd)
+	priceResponse, err := c.fetcher.FetchPrices(ctx, c.biddingZone, priceWindowStart, priceRequestEnd)
+	if err != nil {
+		return nil, err
+	}
+	frequencyResponse, err := c.fetcher.FetchFrequency(ctx, frequencyWindowStart, frequencyRequestEnd)
 	if err != nil {
 		return nil, err
 	}
 
-	points := make([]model.Point, 0, len(response.UnixSeconds))
-	for i, ts := range response.UnixSeconds {
+	points := make([]model.Point, 0, len(priceResponse.UnixSeconds)+len(frequencyResponse.UnixSeconds))
+	for i, ts := range priceResponse.UnixSeconds {
 		pointTime := time.Unix(ts, 0).UTC()
-		if pointTime.Before(windowStart) || !pointTime.Before(windowEnd) {
+		if pointTime.Before(priceWindowStart) || !pointTime.Before(priceWindowEnd) {
 			continue
 		}
 
@@ -60,7 +68,25 @@ func (c *PriceCollector) Collect(ctx context.Context) ([]model.Point, error) {
 				"bzn":    c.biddingZone,
 			},
 			Fields: map[string]any{
-				"price_eur_mwh": response.Price[i],
+				"price_eur_mwh": priceResponse.Price[i],
+			},
+			Time: pointTime,
+		})
+	}
+
+	for i, ts := range frequencyResponse.UnixSeconds {
+		pointTime := time.Unix(ts, 0).UTC()
+		if pointTime.Before(frequencyWindowStart) || !pointTime.Before(frequencyRequestEnd) {
+			continue
+		}
+
+		points = append(points, model.Point{
+			Measurement: MeasurementFrequency,
+			Tags: map[string]string{
+				"source": SourceTagValue,
+			},
+			Fields: map[string]any{
+				"frequency_hz": frequencyResponse.Data[i],
 			},
 			Time: pointTime,
 		})
@@ -74,6 +100,12 @@ func currentPriceWindow(now time.Time) (time.Time, time.Time, time.Time) {
 	requestEnd := windowStart.AddDate(0, 0, 1)
 	windowEnd := windowStart.AddDate(0, 0, 2)
 	return windowStart, requestEnd, windowEnd
+}
+
+func currentDayWindow(now time.Time) (time.Time, time.Time) {
+	windowStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	windowEnd := windowStart.AddDate(0, 0, 1)
+	return windowStart, windowEnd
 }
 
 func berlinLocation() *time.Location {

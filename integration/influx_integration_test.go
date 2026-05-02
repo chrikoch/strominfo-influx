@@ -41,6 +41,16 @@ func TestWriterWritesPointsToInflux(t *testing.T) {
 			},
 			Time: now,
 		},
+		{
+			Measurement: "energy_charts_frequency",
+			Tags: map[string]string{
+				"source": "energy-charts",
+			},
+			Fields: map[string]any{
+				"frequency_hz": 50.01,
+			},
+			Time: now,
+		},
 	})
 	if err != nil {
 		t.Fatalf("Write returned error: %v", err)
@@ -71,6 +81,31 @@ func TestWriterWritesPointsToInflux(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected to find written point in influx query result")
+	}
+
+	frequencyQuery := `from(bucket: "` + influxBucket + `")
+	|> range(start: -5m)
+	|> filter(fn: (r) => r._measurement == "energy_charts_frequency")
+	|> filter(fn: (r) => r._field == "frequency_hz")`
+
+	result, err = queryAPI.Query(context.Background(), frequencyQuery)
+	if err != nil {
+		t.Fatalf("frequency query returned error: %v", err)
+	}
+	defer result.Close()
+
+	found = false
+	for result.Next() {
+		if v, ok := result.Record().Value().(float64); ok && v == 50.01 {
+			found = true
+			break
+		}
+	}
+	if result.Err() != nil {
+		t.Fatalf("frequency query iteration error: %v", result.Err())
+	}
+	if !found {
+		t.Fatalf("expected to find written frequency point in influx query result")
 	}
 }
 
