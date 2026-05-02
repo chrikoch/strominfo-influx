@@ -7,10 +7,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 )
 
 const defaultBaseURL = "https://api.energy-charts.info"
+const defaultFrequencyRegion = "DE-Freiburg"
 
 type Client struct {
 	baseURL    string
@@ -97,8 +99,9 @@ func (c *Client) FetchFrequency(ctx context.Context, startDate, endDate time.Tim
 	}
 
 	query := endpoint.Query()
-	query.Set("start", startDate.Format(time.DateOnly))
-	query.Set("end", endDate.Format(time.DateOnly))
+	query.Set("region", defaultFrequencyRegion)
+	query.Set("start", strconv.FormatInt(startDate.Unix(), 10))
+	query.Set("end", strconv.FormatInt(endDate.Unix(), 10))
 	endpoint.RawQuery = query.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)

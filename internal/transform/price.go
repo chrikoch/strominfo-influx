@@ -29,6 +29,9 @@ type PriceCollector struct {
 	biddingZone string
 	location    *time.Location
 	now         func() time.Time
+
+	lastPriceTime     time.Time
+	lastFrequencyTime time.Time
 }
 
 func NewPriceCollector(fetcher Fetcher, biddingZone string) *PriceCollector {
@@ -42,22 +45,83 @@ func NewPriceCollector(fetcher Fetcher, biddingZone string) *PriceCollector {
 
 func (c *PriceCollector) Collect(ctx context.Context) ([]model.Point, error) {
 	now := c.now().In(c.location)
-	priceWindowStart, priceRequestEnd, priceWindowEnd := currentPriceWindow(now)
-	frequencyWindowStart, frequencyRequestEnd := currentDayWindow(now)
 
-	priceResponse, err := c.fetcher.FetchPrices(ctx, c.biddingZone, priceWindowStart, priceRequestEnd)
-	if err != nil {
-		return nil, err
+	points := make([]model.Point, 0)
+
+	if priceWindowStart, priceRequestEnd, ok := c.priceRequestWindow(now); ok {
+		priceResponse, err := c.fetcher.FetchPrices(ctx, c.biddingZone, priceWindowStart, priceRequestEnd)
+		if err != nil {
+			return nil, err
+		}
+
+		pricePoints, latest := c.pricePoints(priceResponse, priceWindowStart, priceRequestEnd)
+		points = append(points, pricePoints...)
+		if latest.After(c.lastPriceTime) {
+			c.lastPriceTime = latest
+		}
 	}
+
+	frequencyWindowStart, frequencyRequestEnd := c.frequencyRequestWindow(now)
 	frequencyResponse, err := c.fetcher.FetchFrequency(ctx, frequencyWindowStart, frequencyRequestEnd)
 	if err != nil {
 		return nil, err
 	}
 
-	points := make([]model.Point, 0, len(priceResponse.UnixSeconds)+len(frequencyResponse.UnixSeconds))
-	for i, ts := range priceResponse.UnixSeconds {
+	frequencyPoints, latest := c.frequencyPoints(frequencyResponse, frequencyWindowStart, frequencyRequestEnd)
+	points = append(points, frequencyPoints...)
+	if latest.After(c.lastFrequencyTime) {
+		c.lastFrequencyTime = latest
+	}
+
+	return points, validatePoints(points)
+}
+
+func (c *PriceCollector) priceRequestWindow(now time.Time) (time.Time, time.Time, bool) {
+	// Day-ahead prices are stable after publication, so we only request the next
+	// unseen day and, after noon, allow one extra day for the following release.
+	windowStart := dayStart(now, c.location)
+	tomorrowStart := windowStart.AddDate(0, 0, 1)
+	maxFetchDay := windowStart
+	if !now.Before(noonInLocation(now, c.location)) {
+		maxFetchDay = tomorrowStart
+	}
+	windowEnd := maxFetchDay.AddDate(0, 0, 1)
+
+	start := windowStart
+	if !c.lastPriceTime.IsZero() {
+		start = dayStart(c.lastPriceTime.In(c.location), c.location).AddDate(0, 0, 1)
+	}
+
+	if start.After(maxFetchDay) {
+		return time.Time{}, time.Time{}, false
+	}
+
+	return start, windowEnd, true
+}
+
+func (c *PriceCollector) frequencyRequestWindow(now time.Time) (time.Time, time.Time) {
+	windowStart := dayStart(now, c.location)
+	start := windowStart
+	if !c.lastFrequencyTime.IsZero() {
+		start = c.lastFrequencyTime.UTC().Truncate(time.Second).Add(time.Second)
+		if start.Before(windowStart) {
+			start = windowStart
+		}
+	}
+
+	return start, now.UTC().Truncate(time.Second).Add(time.Second)
+}
+
+func (c *PriceCollector) pricePoints(response energycharts.PriceResponse, windowStart, windowEnd time.Time) ([]model.Point, time.Time) {
+	points := make([]model.Point, 0, len(response.UnixSeconds))
+	latest := c.lastPriceTime
+
+	for i, ts := range response.UnixSeconds {
 		pointTime := time.Unix(ts, 0).UTC()
-		if pointTime.Before(priceWindowStart) || !pointTime.Before(priceWindowEnd) {
+		if pointTime.Before(windowStart) || !pointTime.Before(windowEnd) {
+			continue
+		}
+		if !c.lastPriceTime.IsZero() && !pointTime.After(c.lastPriceTime) {
 			continue
 		}
 
@@ -68,15 +132,28 @@ func (c *PriceCollector) Collect(ctx context.Context) ([]model.Point, error) {
 				"bzn":    c.biddingZone,
 			},
 			Fields: map[string]any{
-				"price_eur_mwh": priceResponse.Price[i],
+				"price_eur_mwh": response.Price[i],
 			},
 			Time: pointTime,
 		})
+		if pointTime.After(latest) {
+			latest = pointTime
+		}
 	}
 
-	for i, ts := range frequencyResponse.UnixSeconds {
+	return points, latest
+}
+
+func (c *PriceCollector) frequencyPoints(response energycharts.FrequencyResponse, windowStart, windowEnd time.Time) ([]model.Point, time.Time) {
+	points := make([]model.Point, 0, len(response.UnixSeconds))
+	latest := c.lastFrequencyTime
+
+	for i, ts := range response.UnixSeconds {
 		pointTime := time.Unix(ts, 0).UTC()
-		if pointTime.Before(frequencyWindowStart) || !pointTime.Before(frequencyRequestEnd) {
+		if pointTime.Before(windowStart) || !pointTime.Before(windowEnd) {
+			continue
+		}
+		if !c.lastFrequencyTime.IsZero() && !pointTime.After(c.lastFrequencyTime) {
 			continue
 		}
 
@@ -86,26 +163,26 @@ func (c *PriceCollector) Collect(ctx context.Context) ([]model.Point, error) {
 				"source": SourceTagValue,
 			},
 			Fields: map[string]any{
-				"frequency_hz": frequencyResponse.Data[i],
+				"frequency_hz": response.Data[i],
 			},
 			Time: pointTime,
 		})
+		if pointTime.After(latest) {
+			latest = pointTime
+		}
 	}
 
-	return points, validatePoints(points)
+	return points, latest
 }
 
-func currentPriceWindow(now time.Time) (time.Time, time.Time, time.Time) {
-	windowStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	requestEnd := windowStart.AddDate(0, 0, 1)
-	windowEnd := windowStart.AddDate(0, 0, 2)
-	return windowStart, requestEnd, windowEnd
+func dayStart(now time.Time, location *time.Location) time.Time {
+	now = now.In(location)
+	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
 }
 
-func currentDayWindow(now time.Time) (time.Time, time.Time) {
-	windowStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	windowEnd := windowStart.AddDate(0, 0, 1)
-	return windowStart, windowEnd
+func noonInLocation(now time.Time, location *time.Location) time.Time {
+	now = now.In(location)
+	return time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, location)
 }
 
 func berlinLocation() *time.Location {

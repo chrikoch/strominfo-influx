@@ -4,6 +4,10 @@
 
 V1 implementiert einen Go-Daemon fuer Day-Ahead-Preise aus Deutschland ueber `bzn=DE-LU`.
 Pro Lauf verarbeitet das Tool die Preise fuer heute und morgen im Tagesbezug `Europe/Berlin`.
+Bereits bekannte Preis-Tage werden im laufenden Prozess nicht erneut abgefragt; den
+Folgetag versucht der Collector ab ca. 12:00 Uhr Berliner Zeit erneut, bis die Daten
+vorliegen. Frequenzdaten werden sekundenweise ab dem letzten bekannten Timestamp
+weitergeschrieben.
 
 ## Konfiguration
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -60,11 +61,14 @@ func TestFetchFrequencySuccess(t *testing.T) {
 	client := NewClientWithBaseURL("http://energycharts.test", &http.Client{
 		Timeout: time.Second,
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-			if got := r.URL.Query().Get("start"); got != "2026-05-01" {
-				t.Fatalf("expected start 2026-05-01, got %q", got)
+			if got := r.URL.Query().Get("region"); got != "DE-Freiburg" {
+				t.Fatalf("expected region DE-Freiburg, got %q", got)
 			}
-			if got := r.URL.Query().Get("end"); got != "2026-05-02" {
-				t.Fatalf("expected end 2026-05-02, got %q", got)
+			if got := r.URL.Query().Get("start"); got != strconv.FormatInt(startDate.Unix(), 10) {
+				t.Fatalf("expected start %d, got %q", startDate.Unix(), got)
+			}
+			if got := r.URL.Query().Get("end"); got != strconv.FormatInt(endDate.Unix(), 10) {
+				t.Fatalf("expected end %d, got %q", endDate.Unix(), got)
 			}
 			return &http.Response{
 				StatusCode: http.StatusOK,
