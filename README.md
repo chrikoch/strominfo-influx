@@ -46,6 +46,49 @@ go run ./cmd/strominfo-influx --poll-interval=15m
 - Field: `frequency_hz`
 - Timestamp: Wert aus `unix_seconds`
 
+## Beispielabfragen fuer Grafana
+
+Grafana kann InfluxDB 2.x direkt per Flux abfragen. Die folgenden Beispiele passen zu den
+Measurements und Feldern dieses Projekts.
+
+Einfacher Preis-Query, z. B. fuer eine Tabelle oder einen Raw-Plot:
+
+```flux
+from(bucket: "strom")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r._measurement == "energy_charts_price")
+  |> filter(fn: (r) => r._field == "price_eur_mwh")
+  |> filter(fn: (r) => r.source == "energy-charts")
+  |> filter(fn: (r) => r.bzn == "DE-LU")
+  |> keep(columns: ["_time", "_value", "bzn"])
+```
+
+Aggregierter Preis-Query, z. B. fuer ein Zeitreihen-Panel mit einer Stunde Aufloesung:
+
+```flux
+from(bucket: "strom")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r._measurement == "energy_charts_price")
+  |> filter(fn: (r) => r._field == "price_eur_mwh")
+  |> filter(fn: (r) => r.source == "energy-charts")
+  |> filter(fn: (r) => r.bzn == "DE-LU")
+  |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
+```
+
+Frequenz-Query:
+
+```flux
+from(bucket: "strom")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r._measurement == "energy_charts_frequency")
+  |> filter(fn: (r) => r._field == "frequency_hz")
+  |> filter(fn: (r) => r.source == "energy-charts")
+  |> aggregateWindow(every: 5m, fn: mean, createEmpty: false)
+```
+
+Wenn du ein anderes Bucket oder eine andere BZN nutzt, ersetze `strom` bzw. `DE-LU`
+entsprechend.
+
 ## Tests
 
 Unit- und Integrationstests laufen mit:
