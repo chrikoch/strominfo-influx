@@ -17,16 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     services:
       influxdb:
-        image: influxdb:2.7
+        image: influxdb:2.9
         ports:
           - 8086:8086
-        env:
-          DOCKER_INFLUXDB_INIT_MODE: setup
-          DOCKER_INFLUXDB_INIT_USERNAME: ci
-          DOCKER_INFLUXDB_INIT_PASSWORD: ci-password-123
-          DOCKER_INFLUXDB_INIT_ORG: ci-org
-          DOCKER_INFLUXDB_INIT_BUCKET: ci-bucket
-          DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ci-token
+        options: --entrypoint influxd
     steps:
       - uses: actions/checkout@v4
 
@@ -47,6 +41,16 @@ jobs:
           done
           echo "InfluxDB did not become ready in time" >&2
           exit 1
+
+      - name: Set up InfluxDB
+        run: |
+          docker exec "${{ job.services.influxdb.id }}" influx setup \
+            --force \
+            --username ci \
+            --password ci-password-123 \
+            --org ci-org \
+            --bucket ci-bucket \
+            --token ci-token
 
       - name: Run tests
         env:
