@@ -61,8 +61,9 @@ func (s *Service) Run(ctx context.Context) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// Initial collection – log any error but do not abort the service.
 	if err := s.runOnce(ctx); err != nil {
-		return err
+		s.logger.Error("initial collection failed", "error", err)
 	}
 
 	ticker := time.NewTicker(s.interval)
@@ -75,7 +76,9 @@ func (s *Service) Run(ctx context.Context) error {
 			return nil
 		case <-ticker.C:
 			if err := s.runOnce(ctx); err != nil {
-				return err
+				// Log the error and keep the service alive; next tick will retry.
+				s.logger.Error("collection cycle failed", "error", err)
+				continue
 			}
 		}
 	}

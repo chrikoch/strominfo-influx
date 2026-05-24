@@ -11,6 +11,7 @@ import (
 	"github.com/christian/strominfo-influx/internal/influxwrite"
 	"github.com/christian/strominfo-influx/internal/service"
 	"github.com/christian/strominfo-influx/internal/transform"
+	_ "time/tzdata"
 )
 
 func main() {

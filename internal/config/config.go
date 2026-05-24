@@ -13,7 +13,7 @@ import (
 const (
 	defaultBiddingZone  = "DE-LU"
 	defaultPollInterval = 15 * time.Minute
-	defaultHTTPTimeout  = 10 * time.Second
+	defaultHTTPTimeout  = 30 * time.Second
 	defaultLogLevel     = "INFO"
 )
 

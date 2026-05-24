@@ -3,6 +3,7 @@ package transform
 import (
 	"context"
 	"fmt"
+
 	"time"
 
 	"github.com/christian/strominfo-influx/internal/energycharts"
@@ -48,29 +49,31 @@ func (c *PriceCollector) Collect(ctx context.Context) ([]model.Point, error) {
 
 	points := make([]model.Point, 0)
 
+	// ----- price fetch (error tolerant) -----
 	if priceWindowStart, priceRequestEnd, ok := c.priceRequestWindow(now); ok {
 		priceResponse, err := c.fetcher.FetchPrices(ctx, c.biddingZone, priceWindowStart, priceRequestEnd)
 		if err != nil {
-			return nil, err
-		}
-
-		pricePoints, latest := c.pricePoints(priceResponse, priceWindowStart, priceRequestEnd)
-		points = append(points, pricePoints...)
-		if latest.After(c.lastPriceTime) {
-			c.lastPriceTime = latest
+			fmt.Printf("price fetch error: %v\n", err)
+		} else {
+			pricePoints, latest := c.pricePoints(priceResponse, priceWindowStart, priceRequestEnd)
+			points = append(points, pricePoints...)
+			if latest.After(c.lastPriceTime) {
+				c.lastPriceTime = latest
+			}
 		}
 	}
 
+	// ----- frequency fetch (error tolerant) -----
 	frequencyWindowStart, frequencyRequestEnd := c.frequencyRequestWindow(now)
 	frequencyResponse, err := c.fetcher.FetchFrequency(ctx, frequencyWindowStart, frequencyRequestEnd)
 	if err != nil {
-		return nil, err
-	}
-
-	frequencyPoints, latest := c.frequencyPoints(frequencyResponse, frequencyWindowStart, frequencyRequestEnd)
-	points = append(points, frequencyPoints...)
-	if latest.After(c.lastFrequencyTime) {
-		c.lastFrequencyTime = latest
+		fmt.Printf("frequency fetch error: %v\n", err)
+	} else {
+		frequencyPoints, latest := c.frequencyPoints(frequencyResponse, frequencyWindowStart, frequencyRequestEnd)
+		points = append(points, frequencyPoints...)
+		if latest.After(c.lastFrequencyTime) {
+			c.lastFrequencyTime = latest
+		}
 	}
 
 	return points, validatePoints(points)
@@ -103,13 +106,20 @@ func (c *PriceCollector) frequencyRequestWindow(now time.Time) (time.Time, time.
 	windowStart := dayStart(now, c.location)
 	start := windowStart
 	if !c.lastFrequencyTime.IsZero() {
-		start = c.lastFrequencyTime.UTC().Truncate(time.Second).Add(time.Second)
+		// start from the second after the last successfully written point
+		start = c.lastFrequencyTime.UTC().Add(time.Second)
 		if start.Before(windowStart) {
 			start = windowStart
 		}
+		// safety: never look back more than 24 h to avoid huge requests after long downtime
+		maxLookback := windowStart.Add(-24 * time.Hour)
+		if start.Before(maxLookback) {
+			start = maxLookback
+		}
 	}
 
-	return start, now.UTC().Truncate(time.Second).Add(time.Second)
+	end := now.UTC().Add(time.Second)
+	return start, end
 }
 
 func (c *PriceCollector) pricePoints(response energycharts.PriceResponse, windowStart, windowEnd time.Time) ([]model.Point, time.Time) {
