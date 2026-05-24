@@ -78,18 +78,30 @@ func TestRunExecutesFirstCycle(t *testing.T) {
 	}
 }
 
-func TestRunPropagatesWriteError(t *testing.T) {
+func TestRunContinuesAfterWriteError(t *testing.T) {
 	t.Parallel()
+
+	writer := &stubWriter{err: errors.New("boom")}
+	collector := &stubCollector{
+		points: []model.Point{{Measurement: "m", Fields: map[string]any{"v": 1}, Time: time.Now()}},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
 
 	svc := New(Dependencies{
 		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
-		Collector: &stubCollector{points: []model.Point{{Measurement: "m", Fields: map[string]any{"v": 1}, Time: time.Now()}}},
-		Writer:    &stubWriter{err: errors.New("boom")},
-		Interval:  time.Second,
+		Collector: collector,
+		Writer:    writer,
+		Interval:  time.Hour, // long interval so only the initial cycle runs
 	})
 
-	err := svc.Run(context.Background())
-	if err == nil {
-		t.Fatal("expected error")
+	// The service should not return an error on write failure; it logs and continues.
+	if err := svc.Run(ctx); err != nil {
+		t.Fatalf("Run returned unexpected error: %v", err)
+	}
+	// The initial cycle must have been attempted.
+	if writer.calls == 0 {
+		t.Fatal("expected writer to be called at least once")
 	}
 }
