@@ -103,22 +103,22 @@ func (c *PriceCollector) priceRequestWindow(now time.Time) (time.Time, time.Time
 }
 
 func (c *PriceCollector) frequencyRequestWindow(now time.Time) (time.Time, time.Time) {
-	windowStart := dayStart(now, c.location)
-	start := windowStart
+	start := time.Time{}
 	if !c.lastFrequencyTime.IsZero() {
 		// start from the second after the last successfully written point
 		start = c.lastFrequencyTime.UTC().Add(time.Second)
-		if start.Before(windowStart) {
-			start = windowStart
-		}
-		// safety: never look back more than 24 h to avoid huge requests after long downtime
-		maxLookback := windowStart.Add(-24 * time.Hour)
-		if start.Before(maxLookback) {
-			start = maxLookback
-		}
+	} else {
+		// first run: start from 24h ago to get initial data
+		start = now.UTC().Add(-24 * time.Hour)
 	}
 
-	end := now.UTC().Add(time.Second)
+	// safety: never look back more than 24 h to avoid huge requests after long downtime
+	maxLookback := now.UTC().Add(-24 * time.Hour)
+	if start.Before(maxLookback) {
+		start = maxLookback
+	}
+
+	end := now.UTC()
 	return start, end
 }
 

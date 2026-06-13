@@ -111,10 +111,10 @@ func TestPriceCollectorSkipsAlreadyKnownPriceDayBeforeNoon(t *testing.T) {
 	if got := fetcher.priceEnds[0].Format(time.DateOnly); got != "2026-05-02" {
 		t.Fatalf("unexpected first price fetch end: %s", got)
 	}
-	if got := fetcher.frequencyStarts[0]; got != time.Date(2026, time.May, 1, 0, 0, 0, 0, location) {
+	if got := fetcher.frequencyStarts[0]; got != now.UTC().Add(-24 * time.Hour) {
 		t.Fatalf("unexpected first frequency fetch start: %s", got)
 	}
-	if got := fetcher.frequencyEnds[0]; got != now.UTC().Add(time.Second) {
+	if got := fetcher.frequencyEnds[0]; got != now.UTC() {
 		t.Fatalf("unexpected first frequency fetch end: %s", got)
 	}
 
@@ -140,7 +140,7 @@ func TestPriceCollectorSkipsAlreadyKnownPriceDayBeforeNoon(t *testing.T) {
 	if got := fetcher.frequencyStarts[1]; got != time.Date(2026, time.May, 1, 0, 0, 2, 0, location).UTC() {
 		t.Fatalf("unexpected second frequency fetch start: %s", got)
 	}
-	if got := fetcher.frequencyEnds[1]; got != now.UTC().Add(time.Second) {
+	if got := fetcher.frequencyEnds[1]; got != now.UTC() {
 		t.Fatalf("unexpected second frequency fetch end: %s", got)
 	}
 }
