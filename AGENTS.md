@@ -25,12 +25,6 @@ Generated binaries should go to `bin/` and should not be committed.
 
 For restricted environments, use a writable Go cache, for example: `GOCACHE=/tmp/go-build go test ./...`.
 
-## Coding Style & Naming Conventions
-
-Use standard Go formatting and keep code `gofmt`-clean. Package names should stay short, lowercase, and purpose-driven (`config`, `service`, `transform`). Exported names use Go’s `CamelCase`; unexported helpers use `camelCase`.
-
-Prefer small packages with explicit responsibilities. Keep config keys and Influx field/tag names stable unless the README and tests are updated in the same change.
-
 ## Testing Guidelines
 
 Write table-driven or focused unit tests alongside the package under test in `*_test.go` files. Name tests clearly, for example `TestLoadFromEnvironment` or `TestFetchPricesSuccess`.
@@ -41,6 +35,8 @@ Integration coverage lives in `integration/` and expects:
 - `INTEGRATION_INFLUX_TOKEN`
 - `INTEGRATION_INFLUX_ORG`
 - `INTEGRATION_INFLUX_BUCKET`
+
+Keep config keys and Influx field/tag names stable unless the README and tests are updated in the same change.
 
 ## Commit & Pull Request Guidelines
 

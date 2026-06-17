@@ -2,13 +2,6 @@
 
 `strominfo-influx` holt Strommarktdaten von Energy Charts und schreibt sie nach InfluxDB 2.x.
 
-V1 implementiert einen Go-Daemon fuer Day-Ahead-Preise aus Deutschland ueber `bzn=DE-LU`.
-Pro Lauf verarbeitet das Tool die Preise fuer heute und morgen im Tagesbezug `Europe/Berlin`.
-Bereits bekannte Preis-Tage werden im laufenden Prozess nicht erneut abgefragt; den
-Folgetag versucht der Collector ab ca. 12:00 Uhr Berliner Zeit erneut, bis die Daten
-vorliegen. Frequenzdaten werden sekundenweise ab dem letzten bekannten Timestamp
-weitergeschrieben.
-
 ## Konfiguration
 
 Das Tool nutzt Umgebungsvariablen, optional durch Flags ueberschrieben.
@@ -24,7 +17,7 @@ Optionale Felder:
 
 - `ENERGY_CHARTS_BZN` Standard: `DE-LU`
 - `POLL_INTERVAL` Standard: `15m`
-- `HTTP_TIMEOUT` Standard: `10s`
+- `HTTP_TIMEOUT` Standard: `30s`
 - `LOG_LEVEL` Standard: `INFO`
 
 Beispiel:
