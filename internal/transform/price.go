@@ -3,6 +3,7 @@ package transform
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"time"
 
@@ -30,17 +31,27 @@ type PriceCollector struct {
 	biddingZone string
 	location    *time.Location
 	now         func() time.Time
+	logger      *slog.Logger
 
 	lastPriceTime     time.Time
 	lastFrequencyTime time.Time
 }
 
 func NewPriceCollector(fetcher Fetcher, biddingZone string) *PriceCollector {
+	return NewPriceCollectorWithLogger(fetcher, biddingZone, slog.Default())
+}
+
+func NewPriceCollectorWithLogger(fetcher Fetcher, biddingZone string, logger *slog.Logger) *PriceCollector {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	return &PriceCollector{
 		fetcher:     fetcher,
 		biddingZone: biddingZone,
 		location:    berlinLocation(),
 		now:         time.Now,
+		logger:      logger,
 	}
 }
 
@@ -65,15 +76,42 @@ func (c *PriceCollector) Collect(ctx context.Context) ([]model.Point, error) {
 
 	// ----- frequency fetch (error tolerant) -----
 	frequencyWindowStart, frequencyRequestEnd := c.frequencyRequestWindow(now)
+	frequencyFetchStarted := time.Now()
 	frequencyResponse, err := c.fetcher.FetchFrequency(ctx, frequencyWindowStart, frequencyRequestEnd)
 	if err != nil {
-		fmt.Printf("frequency fetch error: %v\n", err)
+		c.logger.Error("frequency fetch failed",
+			"error", err,
+			"start", frequencyWindowStart,
+			"end", frequencyRequestEnd,
+			"duration", time.Since(frequencyFetchStarted),
+		)
 	} else {
 		frequencyPoints, latest := c.frequencyPoints(frequencyResponse, frequencyWindowStart, frequencyRequestEnd)
 		points = append(points, frequencyPoints...)
 		if latest.After(c.lastFrequencyTime) {
 			c.lastFrequencyTime = latest
 		}
+
+		logAttrs := []any{
+			"start", frequencyWindowStart,
+			"end", frequencyRequestEnd,
+			"duration", time.Since(frequencyFetchStarted),
+			"response_points", len(frequencyResponse.UnixSeconds),
+			"accepted_points", len(frequencyPoints),
+		}
+		if len(frequencyResponse.UnixSeconds) > 0 {
+			logAttrs = append(logAttrs,
+				"response_first_timestamp", time.Unix(frequencyResponse.UnixSeconds[0], 0).UTC(),
+				"response_last_timestamp", time.Unix(frequencyResponse.UnixSeconds[len(frequencyResponse.UnixSeconds)-1], 0).UTC(),
+			)
+		}
+		if len(frequencyPoints) > 0 {
+			logAttrs = append(logAttrs,
+				"accepted_first_timestamp", frequencyPoints[0].Time,
+				"accepted_last_timestamp", frequencyPoints[len(frequencyPoints)-1].Time,
+			)
+		}
+		c.logger.Info("frequency fetch completed", logAttrs...)
 	}
 
 	return points, validatePoints(points)

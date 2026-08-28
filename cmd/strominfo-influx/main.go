@@ -26,7 +26,7 @@ func main() {
 	}))
 
 	client := energycharts.NewClient(cfg.HTTPTimeout)
-	collector := transform.NewPriceCollector(client, cfg.BiddingZone)
+	collector := transform.NewPriceCollectorWithLogger(client, cfg.BiddingZone, logger)
 	writer, err := influxwrite.NewWriter(cfg)
 	if err != nil {
 		logger.Error("failed to create influx writer", "error", err)
